@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>WebSocket</title>
+		<style>
+		</style>
+		<body>
+			<input id ="join" type="text" name="gameId" placeholder="gameId" required>
+			<input id="but" type="submit" value="JOIN">
+			<br><br>
+			<input id ="create" type="submit" value="CreateGame">
+      <br><br>
+      <input id ="play" type="submit" value="Start">
+      <br><br>
+      <input id ="click" type="submit" value="ROLL DICE">
+      <table border="1">
+      <tr>
+      <td id ="fill" height="30px" width="30px"> </td>
+      </tr>
+      </table>
+	</body>
+	<script>
+	var tbl;
+	function generate_table() {
+  var body = document.getElementsByTagName("body")[0];
+  tbl = document.createElement("table");
+  var tblBody = document.createElement("tbody");
+  for (var i = 0; i < 10; i++) {
+    var row = document.createElement("tr");
+    for (var j = 0; j < 10; j++) {
+      var cell = document.createElement("td");
+      cell.setAttribute("height","30px");
+      cell.setAttribute("width","30px");
+      // var cellText = document.createTextNode("cell in row "+i+", column "+j);
+      // cell.appendChild(cellText);
+      row.appendChild(cell);
+    }
+    tblBody.appendChild(row);
+  }
+  tbl.appendChild(tblBody);
+  body.appendChild(tbl);
+  tbl.setAttribute("border", "2");
+}
+generate_table();
+	var id;
+	var gameId;
+	var playId;
+  var players;
+  var curPos=1;
+  var playersCurPos=[];
+    let socket = new WebSocket("ws://localhost:8080");
+     socket.onmessage=function(message){
+       var msg=JSON.parse(message.data);
+       if(msg.method==="connect"){
+       	id=msg.clientId;
+       	console.log(id);
+       }
+       if(msg.method==="create"){
+       	gameId=msg.gameId;
+       	playId=msg.playId;
+       	console.log(gameId);
+       	console.log(playId);
+       }
+       if(msg.method==='join'){
+       	  playId=msg.playId;
+       	  console.log(playId);
+       }
+       if(msg.method==='move'){
+        for(var i=1;i<=players;i++){
+          if(msg.playId==i){
+          //move this color to specified location;
+          if(msg.coordinate>99)continue;
+          var curp=playersCurPos[i-1];
+          var r=Math.floor(curp/10);
+          var c=Math.floor(curp%10);
+          tbl.rows[r].cells[c].innerHTML=" ";
+          playersCurPos[i-1]=msg.coordinate;
+           r=Math.floor(msg.coordinate/10);
+           c=msg.coordinate%10;
+           console.log(r+','+c);
+             var x=tbl.rows[r].cells[c];
+             x.innerHTML=msg.playId;
+             if(playersCurPos[i-1]==99){
+             	var payload={
+             		"method" : "gameover",
+             		"gameId" : gameId,
+             		"playId" : playId
+             	}
+             	socket.send(JSON.stringify(payload));
+             }
+          }
+        }
+       }
+       if(msg.method==='play'){
+         players=msg.players;
+         for(var i=0;i<players;i++)playersCurPos.push(0);
+         console.log("total number of players are -> "+players);
+       }
+       if(msg.method==='gameover'){
+       	alert("Winner is the player with playerId = "+msg.winner);
+       }
+     }
+	var button=document.getElementById("but");
+	button.addEventListener("click",function(){
+		var msgTosend=document.getElementById("join").value;
+    gameId=msgTosend;
+		var data={
+			"method" : "join",
+		    "gameId" : msgTosend,
+			"clientId" : id
+		}
+       socket.send(JSON.stringify(data));
+	});
+    var create=document.getElementById("create");
+    create.addEventListener("click",function(){
+        var payload={
+           "method" : "create",
+           "clientId" : id
+        }
+       socket.send(JSON.stringify(payload));
+    });
+    var play=document.getElementById("play");
+    play.addEventListener("click",function(){
+       var payload={
+        "method" : "play",
+        "gameId" : gameId
+       }
+       socket.send(JSON.stringify(payload));
+    });
+    var click=document.getElementById("click");
+    click.addEventListener("click",function(){
+      var m=document.getElementById("fill");
+       var g=Math.floor(Math.random()*6)+1;
+       m.innerHTML=g;
+       var payload={
+        "method" : "move",
+        "playId" : playId,
+        "gameId" : gameId,
+        "coordinate" : g+(playersCurPos[playId-1])
+       }
+       socket.send(JSON.stringify(payload));
+    });
+	</script>
+	</head>
+	
+</html>
